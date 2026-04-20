@@ -1,24 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 
 const AUTH_COOKIE = 'mosca-session';
 const SECRET = process.env.AUTH_SECRET || 'mosca-insights-secret-2026';
 
-function hashToken(value: string): string {
-  return crypto.createHmac('sha256', SECRET).update(value).digest('hex');
+async function hmacSha256(key: string, data: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(key),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(data));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-function isValidSession(token: string | undefined): boolean {
+async function isValidSession(token: string | undefined): Promise<boolean> {
   if (!token) return false;
-  const [payload, hash] = token.split('.');
+  const dotIdx = token.lastIndexOf('.');
+  if (dotIdx === -1) return false;
+  const payload = token.slice(0, dotIdx);
+  const hash = token.slice(dotIdx + 1);
   if (!payload || !hash) return false;
-  return hashToken(Buffer.from(payload, 'base64').toString()) === hash;
+  const decoded = atob(payload);
+  const expected = await hmacSha256(SECRET, decoded);
+  return expected === hash;
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Public routes — no auth required
   if (
     pathname === '/login' ||
     pathname.startsWith('/api/auth') ||
@@ -29,13 +41,12 @@ export function middleware(req: NextRequest) {
   }
 
   const token = req.cookies.get(AUTH_COOKIE)?.value;
+  const valid = await isValidSession(token);
 
-  if (!isValidSession(token)) {
-    // API routes return 401
+  if (!valid) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-    // Pages redirect to login
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
