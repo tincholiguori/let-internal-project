@@ -77,9 +77,17 @@ export default function HomePage() {
               <p className="text-xs text-white/60">Dashboard de encuestas</p>
             </div>
           </div>
-          <a href="/nps" className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium text-white transition">
-            NPS Dashboard
-          </a>
+          <div className="flex items-center gap-2">
+            <a href="/nps" className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium text-white transition">
+              NPS
+            </a>
+            <button
+              onClick={() => { fetch('/api/auth', { method: 'DELETE' }).then(() => window.location.href = '/login'); }}
+              className="px-3 py-2 text-xs text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition"
+            >
+              Salir
+            </button>
+          </div>
         </div>
       </header>
 
